@@ -1,0 +1,27 @@
+{
+  "name": "vidly",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tstyllr/Vidly.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/tstyllr/Vidly/issues"
+  },
+  "homepage": "https://github.com/tstyllr/Vidly#readme",
+  "dependencies": {
+    "express": "^4.18.2",
+    "jsonwebtoken": "^8.5.1",
+    "mongoose": "^5.13.21"
+  },
+  "devDependencies": {
+    "jest": "^22.4.4"
+  }
+}

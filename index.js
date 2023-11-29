@@ -3,6 +3,7 @@ const config = require("config");
 const mongoose = require("mongoose");
 const Joi = require("joi");
 Joi.objectId = require('joi-objectid')(Joi)
+require('express-async-errors');
 
 const db = config.get("db");
 mongoose.connect(
@@ -15,6 +16,46 @@ mongoose.connect(
 
 const dbCourseSchema = new mongoose.Schema({ name: String });
 const Course = mongoose.model("Course", dbCourseSchema);
+
+const userSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+    minLength: 3,
+    maxLength: 50,
+  },
+  email: {
+    type: String,
+    index: true,
+    unique: true,
+    required: true,
+    minLength: 5,
+    maxLength: 50,
+  },
+  password: {
+    type: String,
+    required: true,
+    minLength: 6,
+    maxLength: 1024,
+  },
+  role: {
+    type: Number,
+    required: true,
+    default: 1,
+  },
+});
+
+const User = mongoose.model("User", userSchema);
+
+const validateUser = function (user) {
+  const schema = Joi.object({
+    name: Joi.string().required().max(50).min(3),
+    email: Joi.string().required().email().min(5).max(50),
+    password: Joi.string().required().min(6).max(1024),
+  });
+  return schema.validate(user);
+}
+
 
 const validateCourse = function (course) {
   const schema = Joi.object({
@@ -99,6 +140,28 @@ app.delete("/api/courses/:id", async (req, res) => {
   } catch (error) {
     res.status(400).send(error.message);
   }
+});
+
+app.get('/api/users', async (req, res) => {
+  const users = await User.find();
+  res.send(users);
+});
+
+app.post('/api/users', async (req, res) => {
+  const { error: inputError } = validateUser(req.body)
+  if (inputError) throw inputError;
+
+  let user = new User(req.body);
+  await user.save();
+  res.send(user);
+});
+
+app.put('/api/users/:id', async (req, res) => {
+  throw new Error('未实现该API');
+});
+
+app.use(function (error, req, res, next) {
+  res.status(500).send(error.message);
 });
 
 app.listen(port, () => {

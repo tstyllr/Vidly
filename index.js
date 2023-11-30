@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const Joi = require("joi");
 Joi.objectId = require('joi-objectid')(Joi)
 require('express-async-errors');
+const bcrypt = require("bcrypt")
 
 const db = config.get("db");
 mongoose.connect(
@@ -49,7 +50,7 @@ const User = mongoose.model("User", userSchema);
 
 const validateUser = function (user) {
   const schema = Joi.object({
-    name: Joi.string().required().max(50).min(3),
+    name: Joi.string().required().min(3).max(50),
     email: Joi.string().required().email().min(5).max(50),
     password: Joi.string().required().min(6).max(1024),
   });
@@ -69,6 +70,13 @@ const validateObjectId = function (id) {
     id: Joi.objectId(),
   });
   return schema.validate(id);
+}
+
+function validateObjectIdMiddleware(req, res, next) {
+  const { error } = validateObjectId(req.params);
+  if (error) return res.status(400).send('Invalid id');
+
+  next();
 }
 
 const port = process.env.PORT || config.get("port");
@@ -147,17 +155,78 @@ app.get('/api/users', async (req, res) => {
   res.send(users);
 });
 
+app.get('/api/users/:id', async (req, res) => {
+  let { error: inputErr } = validateObjectId(req.params);
+  if (inputErr) return res.status(400).send(inputErr.message);
+
+  let user = await User.findById(req.params.id);
+  res.send(user);
+});
+
 app.post('/api/users', async (req, res) => {
   const { error: inputError } = validateUser(req.body)
-  if (inputError) throw inputError;
+  if (inputError) return res.status(400).send(inputError.message)
 
-  let user = new User(req.body);
+  let user = await User.findOne({ email: req.body.email });
+  if (user) return res.status(400).send(`User with email ${req.body.email} is already exist!`)
+
+  let password = await bcrypt.hash(req.body.password, 10);
+  user = new User({
+    name: req.body.name,
+    email: req.body.email,
+    password
+  });
   await user.save();
   res.send(user);
 });
 
-app.put('/api/users/:id', async (req, res) => {
-  throw new Error('未实现该API');
+app.delete('/api/users/:id', async (req, res) => {
+  const { error: inputErr } = validateObjectId(req.params);
+  if (inputErr) return res.status(400).send(inputErr.message);
+
+  let user = await User.findByIdAndDelete(req.params.id);
+  res.send(user);
+});
+
+function extMW1(req, res, next) {
+  console.log('ext MW 1');
+  next();
+}
+
+function extMW2(req, res, next) {
+  console.log('ext MW 2');
+  next();
+}
+
+app.put('/api/users/:id', [validateObjectIdMiddleware], async (req, res) => {
+  const { error } = validateUser(req.body);
+  if (error) res.status(400).send(error.message);
+
+  let user = await User.findByIdAndUpdate(req.params.id, {
+    name: req.body.name,
+  }, { new: true });
+
+  res.send(user);
+});
+
+const validateLoginBody = (body) => {
+  const schema = Joi.object({
+    email: Joi.string().email(),
+    password: Joi.string().min(6).max(1024),
+  });
+  return schema.validate(body);
+};
+app.post('/api/login', async (req, res) => {
+  const { error } = validateLoginBody(req.body);
+  if (error) return res.status(400).send(error.message);
+
+  let user = await User.findOne({ email: req.body.email });
+  if (!user) return res.status(400).send("Invalid email");
+
+  let passed = await bcrypt.compare(req.body.password, user.password);
+  if (!passed) return res.status(400).send('Invalid password');
+
+  res.send(user);
 });
 
 app.use(function (error, req, res, next) {

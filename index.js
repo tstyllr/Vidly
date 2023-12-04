@@ -82,6 +82,8 @@ function validateObjectIdMiddleware(req, res, next) {
 const port = process.env.PORT || config.get("port");
 const app = express();
 app.use(express.json());
+console.log(__dirname);
+app.use('/static', express.static('/Users/yangzhicong/temp/'));
 
 app.get("/api/courses", async (req, res) => {
   try {

@@ -5,6 +5,7 @@ const Joi = require("joi");
 Joi.objectId = require('joi-objectid')(Joi)
 require('express-async-errors');
 const bcrypt = require("bcrypt")
+const ejs = require('ejs');
 
 const db = config.get("db");
 mongoose.connect(
@@ -82,8 +83,14 @@ function validateObjectIdMiddleware(req, res, next) {
 const port = process.env.PORT || config.get("port");
 const app = express();
 app.use(express.json());
-console.log(__dirname);
 app.use('/static', express.static('/Users/yangzhicong/temp/'));
+
+// 配置模板引擎https://expressjs.com/en/guide/using-template-engines.html#using-template-engines-with-express
+app.set('view engine', 'ejs')
+
+app.get('/', (req, res) => {
+  res.render('index', { foo: 'ejs' });
+})
 
 app.get("/api/courses", async (req, res) => {
   try {

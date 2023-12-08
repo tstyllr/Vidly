@@ -238,71 +238,32 @@ app.post('/api/login', async (req, res) => {
   res.send(user);
 });
 
-const childSchema = new mongoose.Schema({
-  name: String,
-  age: Number,
-  grade: Number,
-});
-
-const parentSchema = new mongoose.Schema({
-  name: String,
-  age: Number,
-  level: Number,
-  children: [childSchema],
-});
-
-const Parent = mongoose.model("Parent", parentSchema);
-
-app.post('/api/parents', async (req, res) => {
-  let parent = new Parent({ name: 'yang tu sheng', age: 63, level: 1, children: [{ name: 'yang zhi cong', age: 33, grade: 1 }, { name: 'yang yong', age: 38, grade: 1 }, { name: 'yang zhi chao', age: 28, grade: 1 }] });
-  await parent.save()
-  res.send(parent);
-});
-
 const personSchema = new mongoose.Schema({
   name: String,
-  sex: Number,
-  spouse: mongoose.Schema.Types.ObjectId,
-  parents: [mongoose.Schema.Types.ObjectId],
-  children: [mongoose.Schema.Types.ObjectId],
+  stories: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Story' }],
 });
-
 const Person = mongoose.model("Person", personSchema);
 
-const validatePerson = (person) => {
-  const schema = Joi.object({
-    name: Joi.string().required(),
-    sex: Joi.number().min(0).max(1).required(),
-    spouse: Joi.objectId(),
-    parent: Joi.array().items(Joi.objectId()).required(),
-    children: Joi.array().items(Joi.objectId()).required(),
-  });
-  return schema.validate(person);
-}
-
-app.get('/api/person', async (req, res) => {
-  let person = await Person.find({});
-  res.send(person);
-})
-
-app.get('/api/person/:id', [validateObjectIdMiddleware], async (req, res) => {
-  let person = await Person.findById(req.params.id);
-  res.send(person);
-})
-
-app.post('/api/person', async (req, res) => {
-  let { error } = validatePerson(req.body);
-  if (error) return res.status(400).send('Invalid request params! ' + error.message);
-
-  let person = new Person(req.body);
-  person = await person.save();
-  res.send(person);
+const storySchema = new mongoose.Schema({
+  title: String,
+  author: { type: mongoose.SchemaTypes.ObjectId, ref: 'Person' },
+  fans: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'Person' }],
 });
+const Story = mongoose.model('Story', storySchema);
 
-app.put('/api/person/:id', [validateObjectIdMiddleware], async (req, res) => {
-  let person = await Person.findByIdAndUpdate(req.params.id, req.body, { new: true })
-  res.send(person);
-})
+const test = async () => {
+  // let person = await Person.findById('657272721acec782ddaa001f');
+  // for (let i = 0; i < 20; i++) {
+  //   let story = new Story({ title: `Story ${i + 1}` });
+  //   await story.save();
+  //   person.stories.push(story.id);
+  // }
+  // await person.save();
+
+  let person = await Person.findById('657272721acec782ddaa001f').populate({ path: 'stories', perDocumentLimit: 3, select: 'title' });
+  console.log(person);
+};
+test();
 
 app.use(function (error, req, res, next) {
   res.status(500).send(error.message);

@@ -256,7 +256,7 @@ app.post('/api/login', async (req, res) => {
 
 
   const payload = { name: user.name, email: user.email, role: user.role };
-  const token = jwt.sign(payload, jwtPrivateKey, { expiresIn: '1h' })
+  const token = jwt.sign(payload, jwtPrivateKey)
 
   res.send({ token });
 });

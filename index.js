@@ -4,8 +4,11 @@ const mongoose = require("mongoose");
 const Joi = require("joi");
 Joi.objectId = require('joi-objectid')(Joi)
 require('express-async-errors');
-const bcrypt = require("bcrypt")
+const bcrypt = require("bcrypt");
 const ejs = require('ejs');
+const jwt = require('jsonwebtoken');
+
+const jwtPrivateKey = process.env.jwtPrivateKey || config.get("jwtPrivateKey");
 
 const db = config.get("db");
 mongoose.connect(
@@ -78,6 +81,21 @@ function validateObjectIdMiddleware(req, res, next) {
   if (error) return res.status(400).send('Invalid id');
 
   next();
+}
+
+function authenticationMiddleware(req, res, next) {
+  const token = req.get("token");
+
+  jwt.verify(token, jwtPrivateKey, (error, payload) => {
+    if (error) {
+      console.log('verify token failed:', error.message);
+      res.status(400).send(error.message);
+    }
+    else {
+      console.log('got payload:', payload);
+      next();
+    }
+  });
 }
 
 const port = process.env.PORT || config.get("port");
@@ -207,7 +225,7 @@ function extMW2(req, res, next) {
   next();
 }
 
-app.put('/api/users/:id', [validateObjectIdMiddleware], async (req, res) => {
+app.put('/api/users/:id', [authenticationMiddleware, validateObjectIdMiddleware], async (req, res) => {
   const { error } = validateUser(req.body);
   if (error) res.status(400).send(error.message);
 
@@ -225,6 +243,7 @@ const validateLoginBody = (body) => {
   });
   return schema.validate(body);
 };
+
 app.post('/api/login', async (req, res) => {
   const { error } = validateLoginBody(req.body);
   if (error) return res.status(400).send(error.message);
@@ -235,7 +254,11 @@ app.post('/api/login', async (req, res) => {
   let passed = await bcrypt.compare(req.body.password, user.password);
   if (!passed) return res.status(400).send('Invalid password');
 
-  res.send(user);
+
+  const payload = { name: user.name, email: user.email, role: user.role };
+  const token = jwt.sign(payload, jwtPrivateKey, { expiresIn: '1h' })
+
+  res.send({ token });
 });
 
 const personSchema = new mongoose.Schema({
@@ -252,18 +275,24 @@ const storySchema = new mongoose.Schema({
 const Story = mongoose.model('Story', storySchema);
 
 const test = async () => {
-  // let person = await Person.findById('657272721acec782ddaa001f');
-  // for (let i = 0; i < 20; i++) {
-  //   let story = new Story({ title: `Story ${i + 1}` });
-  //   await story.save();
-  //   person.stories.push(story.id);
-  // }
-  // await person.save();
+  let session = null;
+  try {
+    session = await mongoose.startSession();
+    session.startTransaction();
 
-  let person = await Person.findById('657272721acec782ddaa001f').populate({ path: 'stories', perDocumentLimit: 3, select: 'title' });
-  console.log(person);
+    await Story.findByIdAndUpdate("657272721acec782ddaa0020", { title: '倩女幽魂' }, { session });
+    await Person.findByIdAndUpdate("657272721acec782ddaa001f", { name: '汤姆' }, { session })
+
+    await session.commitTransaction();
+  } catch (error) {
+    console.log('tranaction fail', error.message);
+    if (session) await session.abortTransaction();
+  }
+  finally {
+    if (session) await session.endSession();
+  }
 };
-test();
+// test();
 
 app.use(function (error, req, res, next) {
   res.status(500).send(error.message);

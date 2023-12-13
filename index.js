@@ -2,22 +2,23 @@ const express = require("express");
 const config = require("config");
 const mongoose = require("mongoose");
 const Joi = require("joi");
-Joi.objectId = require('joi-objectid')(Joi)
-require('express-async-errors');
+Joi.objectId = require("joi-objectid")(Joi);
+require("express-async-errors");
 const bcrypt = require("bcrypt");
-const ejs = require('ejs');
-const jwt = require('jsonwebtoken');
+const ejs = require("ejs");
+const jwt = require("jsonwebtoken");
 
 const jwtPrivateKey = process.env.jwtPrivateKey || config.get("jwtPrivateKey");
 
 const db = config.get("db");
-mongoose.connect(
-  db,
-  {}).then(res => {
-    console.log('Connected db', db);
-  }).catch(error => {
-    console.log("Failed to connect db", db);
+mongoose
+  .connect(db, {})
+  .then((res) => {
+    console.log("Connected db", db);
   })
+  .catch((error) => {
+    console.log("Failed to connect db", db);
+  });
 
 const dbCourseSchema = new mongoose.Schema({ name: String });
 const Course = mongoose.model("Course", dbCourseSchema);
@@ -59,56 +60,58 @@ const validateUser = function (user) {
     password: Joi.string().required().min(6).max(1024),
   });
   return schema.validate(user);
-}
-
+};
 
 const validateCourse = function (course) {
   const schema = Joi.object({
     name: Joi.string().required(),
   });
   return schema.validate(course);
-}
+};
 
 const validateObjectId = function (id) {
   const schema = Joi.object({
     id: Joi.objectId(),
   });
   return schema.validate(id);
-}
+};
 
 function validateObjectIdMiddleware(req, res, next) {
   const { error } = validateObjectId(req.params);
-  if (error) return res.status(400).send('Invalid id');
+  if (error) return res.status(400).send("Invalid id");
 
   next();
 }
 
 function authenticationMiddleware(req, res, next) {
   const token = req.get("token");
-
   jwt.verify(token, jwtPrivateKey, (error, payload) => {
     if (error) {
-      console.log('verify token failed:', error.message);
       res.status(400).send(error.message);
-    }
-    else {
-      console.log('got payload:', payload);
+    } else {
+      req.user = payload;
       next();
     }
   });
 }
 
+function role99Middleware(req, res, next) {
+  if (req.user?.role === 99) {
+    next();
+  } else res.status(403).send("Request denied!");
+}
+
 const port = process.env.PORT || config.get("port");
 const app = express();
 app.use(express.json());
-app.use('/static', express.static('/Users/yangzhicong/temp/'));
+app.use("/static", express.static("/Users/yangzhicong/temp/"));
 
 // 配置模板引擎https://expressjs.com/en/guide/using-template-engines.html#using-template-engines-with-express
-app.set('view engine', 'ejs')
+app.set("view engine", "ejs");
 
-app.get('/', (req, res) => {
-  res.render('index', { foo: 'ejs' });
-})
+app.get("/", (req, res) => {
+  res.render("index", { foo: "ejs" });
+});
 
 app.get("/api/courses", async (req, res) => {
   try {
@@ -177,12 +180,12 @@ app.delete("/api/courses/:id", async (req, res) => {
   }
 });
 
-app.get('/api/users', async (req, res) => {
+app.get("/api/users", async (req, res) => {
   const users = await User.find();
   res.send(users);
 });
 
-app.get('/api/users/:id', async (req, res) => {
+app.get("/api/users/:id", async (req, res) => {
   let { error: inputErr } = validateObjectId(req.params);
   if (inputErr) return res.status(400).send(inputErr.message);
 
@@ -190,51 +193,66 @@ app.get('/api/users/:id', async (req, res) => {
   res.send(user);
 });
 
-app.post('/api/users', async (req, res) => {
-  const { error: inputError } = validateUser(req.body)
-  if (inputError) return res.status(400).send(inputError.message)
+app.post("/api/users", async (req, res) => {
+  const { error: inputError } = validateUser(req.body);
+  if (inputError) return res.status(400).send(inputError.message);
 
   let user = await User.findOne({ email: req.body.email });
-  if (user) return res.status(400).send(`User with email ${req.body.email} is already exist!`)
+  if (user)
+    return res
+      .status(400)
+      .send(`User with email ${req.body.email} is already exist!`);
 
   let password = await bcrypt.hash(req.body.password, 10);
   user = new User({
     name: req.body.name,
     email: req.body.email,
-    password
+    password,
   });
   await user.save();
   res.send(user);
 });
 
-app.delete('/api/users/:id', async (req, res) => {
-  const { error: inputErr } = validateObjectId(req.params);
-  if (inputErr) return res.status(400).send(inputErr.message);
+app.delete(
+  "/api/users/:id",
+  [authenticationMiddleware, role99Middleware, validateObjectIdMiddleware],
+  async (req, res) => {
+    const { error: inputErr } = validateObjectId(req.params);
+    if (inputErr) return res.status(400).send(inputErr.message);
 
-  let user = await User.findByIdAndDelete(req.params.id);
-  res.send(user);
-});
+    let user = await User.findByIdAndDelete(req.params.id);
+    res.send(user);
+  }
+);
 
 function extMW1(req, res, next) {
-  console.log('ext MW 1');
+  console.log("ext MW 1");
   next();
 }
 
 function extMW2(req, res, next) {
-  console.log('ext MW 2');
+  console.log("ext MW 2");
   next();
 }
 
-app.put('/api/users/:id', [authenticationMiddleware, validateObjectIdMiddleware], async (req, res) => {
-  const { error } = validateUser(req.body);
-  if (error) res.status(400).send(error.message);
+app.put(
+  "/api/users/:id",
+  [authenticationMiddleware, validateObjectIdMiddleware],
+  async (req, res) => {
+    const { error } = validateUser(req.body);
+    if (error) res.status(400).send(error.message);
 
-  let user = await User.findByIdAndUpdate(req.params.id, {
-    name: req.body.name,
-  }, { new: true });
+    let user = await User.findByIdAndUpdate(
+      req.params.id,
+      {
+        name: req.body.name,
+      },
+      { new: true }
+    );
 
-  res.send(user);
-});
+    res.send(user);
+  }
+);
 
 const validateLoginBody = (body) => {
   const schema = Joi.object({
@@ -244,7 +262,7 @@ const validateLoginBody = (body) => {
   return schema.validate(body);
 };
 
-app.post('/api/login', async (req, res) => {
+app.post("/api/login", async (req, res) => {
   const { error } = validateLoginBody(req.body);
   if (error) return res.status(400).send(error.message);
 
@@ -252,27 +270,26 @@ app.post('/api/login', async (req, res) => {
   if (!user) return res.status(400).send("Invalid email");
 
   let passed = await bcrypt.compare(req.body.password, user.password);
-  if (!passed) return res.status(400).send('Invalid password');
-
+  if (!passed) return res.status(400).send("Invalid password");
 
   const payload = { name: user.name, email: user.email, role: user.role };
-  const token = jwt.sign(payload, jwtPrivateKey)
+  const token = jwt.sign(payload, jwtPrivateKey);
 
   res.send({ token });
 });
 
 const personSchema = new mongoose.Schema({
   name: String,
-  stories: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Story' }],
+  stories: [{ type: mongoose.Schema.Types.ObjectId, ref: "Story" }],
 });
 const Person = mongoose.model("Person", personSchema);
 
 const storySchema = new mongoose.Schema({
   title: String,
-  author: { type: mongoose.SchemaTypes.ObjectId, ref: 'Person' },
-  fans: [{ type: mongoose.SchemaTypes.ObjectId, ref: 'Person' }],
+  author: { type: mongoose.SchemaTypes.ObjectId, ref: "Person" },
+  fans: [{ type: mongoose.SchemaTypes.ObjectId, ref: "Person" }],
 });
-const Story = mongoose.model('Story', storySchema);
+const Story = mongoose.model("Story", storySchema);
 
 const test = async () => {
   let session = null;
@@ -280,15 +297,22 @@ const test = async () => {
     session = await mongoose.startSession();
     session.startTransaction();
 
-    await Story.findByIdAndUpdate("657272721acec782ddaa0020", { title: '倩女幽魂' }, { session });
-    await Person.findByIdAndUpdate("657272721acec782ddaa001f", { name: '汤姆' }, { session })
+    await Story.findByIdAndUpdate(
+      "657272721acec782ddaa0020",
+      { title: "倩女幽魂" },
+      { session }
+    );
+    await Person.findByIdAndUpdate(
+      "657272721acec782ddaa001f",
+      { name: "汤姆" },
+      { session }
+    );
 
     await session.commitTransaction();
   } catch (error) {
-    console.log('tranaction fail', error.message);
+    console.log("tranaction fail", error.message);
     if (session) await session.abortTransaction();
-  }
-  finally {
+  } finally {
     if (session) await session.endSession();
   }
 };

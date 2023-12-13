@@ -7,6 +7,9 @@ require("express-async-errors");
 const bcrypt = require("bcrypt");
 const ejs = require("ejs");
 const jwt = require("jsonwebtoken");
+const { createLogger, format, transports, level } = require('winston');
+const { combine, timestamp, label, prettyPrint, simple, colorize } = format;
+require('winston-mongodb');
 
 const jwtPrivateKey = process.env.jwtPrivateKey || config.get("jwtPrivateKey");
 
@@ -19,6 +22,19 @@ mongoose
   .catch((error) => {
     console.log("Failed to connect db", db);
   });
+
+const logger = createLogger({
+  transports: [
+    new transports.Console(),
+    new transports.File({ filename: 'combined.log', dirname: 'logs' }),
+    new transports.File({ filename: 'error.log', dirname: 'logs', level: 'error' }),
+    new transports.MongoDB({ db, level: 'error' }),
+  ],
+  format: combine(timestamp(), prettyPrint()),
+});
+
+logger.info('hello world.');
+logger.error('oops')
 
 const dbCourseSchema = new mongoose.Schema({ name: String });
 const Course = mongoose.model("Course", dbCourseSchema);

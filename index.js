@@ -10,6 +10,7 @@ const jwt = require("jsonwebtoken");
 const { createLogger, format, transports, level } = require('winston');
 const { combine, timestamp, label, prettyPrint, simple, colorize } = format;
 require('winston-mongodb');
+const cors = require('cors')
 
 const jwtPrivateKey = process.env.jwtPrivateKey || config.get("jwtPrivateKey");
 
@@ -119,6 +120,9 @@ function role99Middleware(req, res, next) {
 
 const port = process.env.PORT || config.get("port");
 const app = express();
+// cors (cross origin resource sharing)。浏览器有同源策略，默认不允许当前网站向其他origin（其他服务器）获取资源。服务器可以通过配置cros让浏览器允许访问
+app.use(cors()); // 表示服务器允许所有的跨源访问
+// app.use(cors({origin: 'https://example.com'})); // 表示服务器只允许https://example.com的跨源访问
 app.use(express.json());
 app.use("/static", express.static("/Users/yangzhicong/temp/"));
 

@@ -1,7 +1,7 @@
 const express = require("express");
 const config = require('config');
 const app = express();
-const log = require("./startup/log");
+const logger = require("./startup/logger");
 
 require('./startup/error')();
 require('./startup/validate')();
@@ -10,7 +10,7 @@ require('./startup/db')();
 require('./startup/cors')(app);
 require('./startup/routes')(app);
 
-const port = process.env.NODE_PORT || config.get('port')
+const port = process.env.NODE_PORT || config.get('port');
 app.listen(port, () => {
-  log.info(`Express did listen to ${port}`)
+  logger.info(`Express did listen to ${port}`)
 })

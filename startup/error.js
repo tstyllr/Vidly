@@ -1,4 +1,4 @@
-const log = require("./log");
+const log = require("./logger");
 
 module.exports = function () {
   // 遇到这两种类型的错误时，应该退出node程序
